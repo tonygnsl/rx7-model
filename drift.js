@@ -176,7 +176,7 @@
   // couleurs de base (mini-carte)
   var COL = {};
   COL[G] = '#3e6b34'; COL[ROAD] = '#34343b'; COL[DIRT] = '#8a6740'; COL[FIELD] = '#a49a3c'; COL[SAND] = '#d4bd85';
-  COL[WATER] = '#2a6a9e'; COL[BUILD] = '#4a4c58'; COL[TREE] = '#1f4a1e'; COL[HOUSE] = '#a35a42'; COL[ROCK] = '#8c8274'; COL[PARK] = '#4d8a40';
+  COL[WATER] = '#2a6a9e'; COL[BUILD] = '#b86f4c'; COL[TREE] = '#1f4a1e'; COL[HOUSE] = '#a35a42'; COL[ROCK] = '#8c8274'; COL[PARK] = '#4d8a40';
 
   var mini = document.createElement('canvas');
   mini.width = mini.height = N;
@@ -239,7 +239,12 @@
         c.strokeStyle = 'rgba(190,225,255,.18)'; c.lineWidth = 1.5;
         c.beginPath(); c.moveTo(x + 4 + h * 8, y + 10 + h2 * 12); c.quadraticCurveTo(x + 12 + h * 8, y + 6 + h2 * 12, x + 20 + h * 8, y + 10 + h2 * 12); c.stroke();
         // ecume sur les berges
-        c.fillStyle = 'rgba(235,245,255,.35)';
+        c.fillStyle = 'rgba(10,40,70,.6)';
+        if (tileAt(tx, ty - 1) !== WATER) c.fillRect(x, y, T, 5);
+        if (tileAt(tx, ty + 1) !== WATER) c.fillRect(x, y + T - 5, T, 5);
+        if (tileAt(tx - 1, ty) !== WATER) c.fillRect(x, y, 5, T);
+        if (tileAt(tx + 1, ty) !== WATER) c.fillRect(x + T - 5, y, 5, T);
+        c.fillStyle = 'rgba(235,245,255,.45)';
         if (tileAt(tx, ty - 1) !== WATER) c.fillRect(x, y, T, 3);
         if (tileAt(tx, ty + 1) !== WATER) c.fillRect(x, y + T - 3, T, 3);
         if (tileAt(tx - 1, ty) !== WATER) c.fillRect(x, y, 3, T);
@@ -268,40 +273,52 @@
     var h = hash(tx, ty), h2 = hash(ty + 3, tx + 9);
     switch (tt) {
       case BUILD:
-        var bx = Math.floor(tx / 8), by = Math.floor(ty / 8), bh = hash(bx, by);
-        var roofs = ['#4a4c58', '#56505a', '#3f4d5a', '#5a5348', '#474f47'];
+        // le dessin couvre exactement la zone de collision : ce qu'on voit = ce qui bloque
+        var bx = Math.floor((tx + 4) / 8), by = Math.floor((ty + 4) / 8), bh = hash(bx * 7 + 3, by * 5 + 1);
+        var roofs = ['#b86f4c', '#6f8fa6', '#c2a878', '#7f9c6a', '#a07894', '#c47f5a'];
         var roof = roofs[Math.floor(bh * roofs.length)];
         var top = tileAt(tx, ty - 1) !== BUILD, left = tileAt(tx - 1, ty) !== BUILD, bot = tileAt(tx, ty + 1) !== BUILD, right = tileAt(tx + 1, ty) !== BUILD;
-        var x0 = x + (left ? 3 : 0), y0 = y + (top ? 3 : 0), x1 = x + T - (right ? 3 : 0), y1 = y + T - (bot ? 3 : 0);
-        c.fillStyle = 'rgba(0,0,0,.4)'; c.fillRect(x0 + 8, y0 + 8, x1 - x0, y1 - y0);
-        c.fillStyle = roof; c.fillRect(x0, y0, x1 - x0, y1 - y0);
-        c.fillStyle = 'rgba(255,255,255,.1)';
-        if (top) c.fillRect(x0, y0, x1 - x0, 2);
-        if (left) c.fillRect(x0, y0, 2, y1 - y0);
-        c.fillStyle = 'rgba(0,0,0,.2)';
-        if (bot) c.fillRect(x0, y1 - 2, x1 - x0, 2);
-        if (right) c.fillRect(x1 - 2, y0, 2, y1 - y0);
-        if (h < 0.18) { c.fillStyle = '#8f939c'; c.fillRect(x + 9, y + 10, 9, 7); c.fillStyle = '#62666e'; c.fillRect(x + 11, y + 12, 5, 3); }
-        else if (h < 0.26) { c.fillStyle = 'rgba(120,200,255,.25)'; c.fillRect(x + 6, y + 6, 20, 20); }
+        c.fillStyle = 'rgba(0,0,0,.45)';
+        if (bot) c.fillRect(x + 6, y + T, T, 9);
+        if (right) c.fillRect(x + T, y + 6, 9, T);
+        c.fillStyle = roof; c.fillRect(x, y, T, T);
+        // facade sombre en bas/droite, rebord clair en haut/gauche : effet de volume
+        c.fillStyle = 'rgba(0,0,0,.38)';
+        if (bot) c.fillRect(x, y + T - 6, T, 6);
+        if (right) c.fillRect(x + T - 6, y, 6, T);
+        c.fillStyle = 'rgba(255,255,255,.28)';
+        if (top) c.fillRect(x, y, T, 3);
+        if (left) c.fillRect(x, y, 3, T);
+        // contour noir net sur tout le bord du batiment
+        c.fillStyle = '#121216';
+        if (top) c.fillRect(x, y, T, 2);
+        if (bot) c.fillRect(x, y + T - 2, T, 2);
+        if (left) c.fillRect(x, y, 2, T);
+        if (right) c.fillRect(x + T - 2, y, 2, T);
+        if (h < 0.16) { c.fillStyle = '#d9dce2'; c.fillRect(x + 9, y + 9, 10, 8); c.fillStyle = '#8f939c'; c.fillRect(x + 11, y + 11, 6, 3); }
+        else if (h < 0.24) { c.fillStyle = 'rgba(160,220,255,.45)'; c.fillRect(x + 7, y + 7, 16, 16); }
         break;
       case HOUSE:
-        var col = ['#a35a42', '#8c4a3c', '#6f5a4a', '#9c6b3e'][Math.floor(h * 4)];
-        c.fillStyle = 'rgba(0,0,0,.3)'; c.fillRect(x + 8, y + 8, 22, 22);
-        c.fillStyle = col; c.fillRect(x + 4, y + 4, 23, 23);
-        c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(x + 4, y + 4, 23, 11);
-        c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(x + 4, y + 15, 23, 1);
+        var col = ['#c0583c', '#a8452f', '#8f6f52', '#c2803f'][Math.floor(h * 4)];
+        c.fillStyle = 'rgba(0,0,0,.4)'; c.fillRect(x + 8, y + 8, 26, 26);
+        c.fillStyle = col; c.fillRect(x + 3, y + 3, T - 6, T - 6);
+        c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(x + 3, y + 3, T - 6, 12);
+        c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(x + 3, y + 15, T - 6, 2);
+        c.strokeStyle = '#121216'; c.lineWidth = 2; c.strokeRect(x + 4, y + 4, T - 8, T - 8);
         if (h2 < 0.5) { c.fillStyle = '#5b5b60'; c.fillRect(x + 20, y + 6, 4, 4); }
         break;
       case TREE:
         var rad = 11 + h * 4, cx = x + 16 + (h2 - 0.5) * 6, cy = y + 16 + (h - 0.5) * 6;
         c.fillStyle = 'rgba(0,0,0,.28)'; c.beginPath(); c.arc(cx + 4, cy + 5, rad, 0, 7); c.fill();
         c.fillStyle = h < 0.5 ? '#1f4a1e' : '#265a24'; c.beginPath(); c.arc(cx, cy, rad, 0, 7); c.fill();
+        c.strokeStyle = 'rgba(8,20,8,.9)'; c.lineWidth = 2; c.stroke();
         c.fillStyle = h < 0.5 ? '#2d6b2a' : '#347a2f'; c.beginPath(); c.arc(cx - 2, cy - 2, rad * 0.7, 0, 7); c.fill();
         c.fillStyle = 'rgba(255,255,255,.12)'; c.beginPath(); c.arc(cx - 4, cy - 5, rad * 0.32, 0, 7); c.fill();
         break;
       case ROCK:
         c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(x + 19, y + 20, 12, 8, 0, 0, 7); c.fill();
         c.fillStyle = '#8c8274'; c.beginPath(); c.ellipse(x + 16, y + 16, 12, 9, 0.3, 0, 7); c.fill();
+        c.strokeStyle = '#3a342c'; c.lineWidth = 2; c.stroke();
         c.fillStyle = '#a69c8e'; c.beginPath(); c.ellipse(x + 13, y + 13, 6, 4, 0.3, 0, 7); c.fill();
         break;
       case PARK:
@@ -385,7 +402,8 @@
         d2 = dx * dx + dy * dy;
         if (d2 >= rr * rr) continue;
       } else {
-        var nx = Math.max(tx * T, Math.min(c.x, tx * T + T)), ny = Math.max(ty * T, Math.min(c.y, ty * T + T));
+        var ins = tt === HOUSE ? 3 : 0;
+        var nx = Math.max(tx * T + ins, Math.min(c.x, tx * T + T - ins)), ny = Math.max(ty * T + ins, Math.min(c.y, ty * T + T - ins));
         dx = c.x - nx; dy = c.y - ny; d2 = dx * dx + dy * dy;
         if (d2 >= c.r * c.r) continue;
         if (d2 === 0) { dx = c.x - (tx * T + T / 2); dy = c.y - (ty * T + T / 2); d2 = 0; }
