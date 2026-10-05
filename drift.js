@@ -476,13 +476,14 @@
     return null;
   }
 
+  var pHist = [], pHistT = 0;
   function reset() {
     var c = N / 2;
     player = makeCar((c + 1) * T, (c + 1) * T + T / 2, 0, false);
     cops = []; npcs = []; pickups = []; wrecks = []; skids = []; smoke = []; sparks = [];
     takedowns = 0; flashT = 0;
     nitroT = 0; jamT = 0; pickT = 1; npcT = 0;
-    elapsed = 0; score = 0; drift = 0; combo = 1; driftEnd = 0; bust = 0; spawnT = 5; msg = ''; msgT = 0; shake = 0;
+    elapsed = 0; score = 0; drift = 0; combo = 1; driftEnd = 0; bust = 0; pHist = []; pHistT = 0; spawnT = 5; msg = ''; msgT = 0; shake = 0;
     cam.x = player.x; cam.y = player.y;
   }
 
@@ -702,6 +703,11 @@
     }
     score += 10 * lvl * dt;
 
+    pHistT += dt;
+    if (pHistT >= 0.25) { pHistT = 0; pHist.push([player.x, player.y]); if (pHist.length > 7) pHist.shift(); }
+    var netMove = pHist.length >= 7 ? Math.hypot(player.x - pHist[0][0], player.y - pHist[0][1]) : 999;
+    var pinned = netMove < 95;  // en 1,5 s le joueur n'a quasiment pas avance (donut, sur place, coince)
+
     // police
     spawnT -= dt;
     var maxCops = Math.min(7, lvl + 1);
@@ -719,7 +725,7 @@
       c.think = (c.think || 0) - dt;
       if (c.tx === undefined) { c.tx = player.x; c.ty = player.y; }
       if (c.think <= 0 && jamT <= 0) {
-        var lead = Math.random() < 0.3 ? 0.95 : 0.45;
+        var lead = (dP < 170 || pinned) ? 0 : (Math.random() < 0.3 ? 0.95 : 0.45);
         c.tx = player.x + player.vx * lead; c.ty = player.y + player.vy * lead;
         c.think = dP < 110 ? 0.12 + Math.random() * 0.18 : 0.3 + Math.random() * 0.45;
       }
@@ -730,8 +736,26 @@
         var l = probe(c.a - 0.6, 38), r = probe(c.a + 0.6, 38);
         want = c.a + (l && !r ? 1.2 : (!l && r ? -1.2 : ((i + Math.floor(elapsed)) % 2 ? 1.2 : -1.2)));
       }
+      // separation : un flic evite de foncer dans un collegue devant lui
+      var cSp = Math.hypot(c.vx, c.vy), fx = Math.cos(c.a), fy = Math.sin(c.a), yieldB = false;
+      for (var k2 = 0; k2 < cops.length; k2++) {
+        var o = cops[k2]; if (o === c) continue;
+        var rx = o.x - c.x, ry = o.y - c.y, od = Math.hypot(rx, ry);
+        if (od > 0 && od < 90) {
+          var ahead = (rx * fx + ry * fy) / od;
+          if (ahead > 0.35) {
+            var side = rx * fy - ry * fx;   // >0 : collegue a gauche -> on part a droite
+            want += (side > 0 ? 0.75 : -0.75) * (1 - od / 90) * 1.6;
+            var closing = ((c.vx - o.vx) * rx + (c.vy - o.vy) * ry) / od;
+            if (od < 60 && closing > 60) yieldB = true;
+          }
+        }
+      }
       var diff = Math.atan2(Math.sin(want - c.a), Math.cos(want - c.a));
-      var inp = { up: true, down: false, left: diff < -0.08, right: diff > 0.08, hb: Math.abs(diff) > 1.6 && Math.hypot(c.vx, c.vy) > 160 };
+      var inp = { up: true, down: false, left: diff < -0.08, right: diff > 0.08, hb: Math.abs(diff) > 1.6 && cSp > 160 };
+      // de pres : il ralentit pour pouvoir tourner serre au lieu de passer a cote a fond
+      if (dP < 140 && Math.abs(diff) > 0.8 && cSp > 110) { inp.up = false; inp.down = cSp > 170; inp.hb = false; }
+      if (yieldB) { inp.up = false; inp.down = cSp > 90; }
       if (c.rev > 0) { c.rev -= dt; inp = { up: false, down: true, left: c.revSide > 0, right: c.revSide < 0, hb: false }; }
       var cImp = stepCar(c, inp, dt, 0.84 + lvl * 0.04);
       if (c.hp === undefined) c.hp = 100;
@@ -744,7 +768,7 @@
       var hit = collideCars(player, c);
       if (hit > 80) { player.hp -= (hit - 80) * 0.05; shake = Math.min(9, hit / 30); addSparks((player.x + c.x) / 2, (player.y + c.y) / 2, 10); }
       if (hit > 140) c.hp -= (hit - 140) * 0.35;
-      for (var j = 0; j < i; j++) { var hc = collideCars(c, cops[j]); if (hc > 70) { c.hp -= (hc - 70) * 0.5; cops[j].hp -= (hc - 70) * 0.5; addSparks((c.x + cops[j].x) / 2, (c.y + cops[j].y) / 2, 6); } }
+      for (var j = 0; j < i; j++) { var hc = collideCars(c, cops[j]); if (hc > 110) { c.hp -= (hc - 110) * 0.3; cops[j].hp -= (hc - 110) * 0.3; addSparks((c.x + cops[j].x) / 2, (c.y + cops[j].y) / 2, 6); } }
       if (c.hp <= 0) { explode(c); cops.splice(i, 1); continue; }
       var d = Math.hypot(c.x - player.x, c.y - player.y);
       if (d < 70) near = true;
@@ -752,7 +776,9 @@
     }
 
     // jauge d'arrestation (facon NFS Most Wanted)
-    if (near && sp < 55 && jamT <= 0) bust += dt; else bust = Math.max(0, bust - dt * 0.8);
+    var nearN = 0; for (i = 0; i < cops.length; i++) if (Math.hypot(cops[i].x - player.x, cops[i].y - player.y) < 85) nearN++;
+    if (near && (sp < 55 || pinned) && jamT <= 0) bust += dt * (sp < 55 ? 1 : 0.8) * (nearN >= 2 ? 1.4 : 1);
+    else bust = Math.max(0, bust - dt * 0.8);
 
     updateTraffic(dt);
     updatePickups(dt);
