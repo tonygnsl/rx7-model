@@ -564,13 +564,30 @@
     return null;
   }
 
+  // detection de blocage : on mesure le deplacement reel sur des fenetres d'une seconde
+  function progress(c, dt) {
+    if (c.px === undefined) { c.px = c.x; c.py = c.y; c.pt = 0; c.stuckT = 0; }
+    c.pt += dt;
+    if (c.pt >= 1) {
+      var moved = Math.hypot(c.x - c.px, c.y - c.py);
+      c.px = c.x; c.py = c.y; c.pt = 0;
+      c.stuckT = moved < 28 ? c.stuckT + 1 : 0;
+    }
+    return c.stuckT;
+  }
+  function onScreen(c) { return Math.abs(c.x - cam.x) < VW / 2 + 60 && Math.abs(c.y - cam.y) < VH / 2 + 60; }
+  function poof(c) {
+    for (var i = 0; i < 6 && smoke.length < 180; i++) smoke.push({ x: c.x + (Math.random() - 0.5) * 18, y: c.y + (Math.random() - 0.5) * 18, r: 8, life: 1 });
+  }
+
   function updateNpc(c, dt) {
     if (c.crash > 0) {
       c.crash -= dt;
       stepCar(c, {}, dt, 1);
       if (c.crash <= 0) {
         var tx0 = Math.floor(c.x / T), ty0 = Math.floor(c.y / T);
-        if (!isRoadT(tx0, ty0)) { c.crash = 0.5; return; }
+        if (!isRoadT(tx0, ty0)) { c.crash = 0.5; c.offRoad = (c.offRoad || 0) + 0.5; return; }
+        c.offRoad = 0;
         // repart dans l'axe le plus proche de son orientation
         var best = 0, bd = 9;
         for (var k0 = 0; k0 < 4; k0++) { var da = Math.abs(Math.atan2(Math.sin(c.a - Math.atan2(DIRS[k0][1], DIRS[k0][0])), Math.cos(c.a - Math.atan2(DIRS[k0][1], DIRS[k0][0])))); if (da < bd && isRoadT(tx0 + DIRS[k0][0], ty0 + DIRS[k0][1])) { bd = da; best = k0; } }
@@ -599,6 +616,13 @@
       var dx = o.x - c.x, dy = o.y - c.y, ahead = dx * d[0] + dy * d[1], lat = Math.abs(-dx * d[1] + dy * d[0]);
       if (ahead > 0 && ahead < 52 && lat < 20) { blocked = true; break; }
     }
+    // bloque face a quelqu'un depuis trop longtemps : demi-tour
+    c.blockT = blocked ? (c.blockT || 0) + dt : 0;
+    if (c.blockT > 1.6) {
+      var nd = (c.dir + 2) % 4;
+      if (isRoadT(tx + DIRS[nd][0], ty + DIRS[nd][1])) { c.dir = nd; d = DIRS[nd]; c.ltx = tx; c.lty = ty; blocked = false; }
+      c.blockT = 0;
+    }
     var v = c.vx * d[0] + c.vy * d[1], target = blocked ? 0 : c.spd;
     v += Math.max(-420 * dt, Math.min(130 * dt, target - v));
     if (d[0]) c.y += (ccy - c.y) * Math.min(1, dt * 6); else c.x += (ccx - c.x) * Math.min(1, dt * 6);
@@ -615,6 +639,12 @@
     for (var i = npcs.length - 1; i >= 0; i--) {
       var c = npcs[i];
       updateNpc(c, dt);
+      var nsT = progress(c, dt);
+      if ((nsT >= 3 && !onScreen(c)) || nsT >= 6 || (c.offRoad || 0) > 6) {
+        if (onScreen(c)) poof(c);
+        npcs.splice(i, 1);
+        continue;
+      }
       var hit = collideCars(player, c);
       if (hit > 25) { c.crash = 2.5; if (hit > 120) { player.hp -= (hit - 120) * 0.04; shake = Math.min(7, hit / 35); addSparks((player.x + c.x) / 2, (player.y + c.y) / 2, 6); } }
       for (var j = 0; j < cops.length; j++) { var hn = collideCars(cops[j], c); if (hn > 25) c.crash = 2.5; if (hn > 110) cops[j].hp -= (hn - 110) * 0.3; }
@@ -684,11 +714,15 @@
       }
       var diff = Math.atan2(Math.sin(want - c.a), Math.cos(want - c.a));
       var inp = { up: true, down: false, left: diff < -0.08, right: diff > 0.08, hb: Math.abs(diff) > 1.6 && Math.hypot(c.vx, c.vy) > 160 };
-      if (c.rev > 0) { c.rev -= dt; inp = { up: false, down: true, left: diff > 0, right: diff < 0, hb: false }; }
+      if (c.rev > 0) { c.rev -= dt; inp = { up: false, down: true, left: c.revSide > 0, right: c.revSide < 0, hb: false }; }
       var cImp = stepCar(c, inp, dt, 0.84 + lvl * 0.04);
       if (c.hp === undefined) c.hp = 100;
       if (cImp > 145) { c.hp -= (cImp - 145) * 0.4; addSparks(c.x, c.y, 4); }
-      if (Math.hypot(c.vx, c.vy) < 22) { c.stuck += dt; if (c.stuck > 1.2) { c.rev = 0.9; c.stuck = 0; } } else c.stuck = 0;
+      if (Math.hypot(c.vx, c.vy) < 22 && c.rev <= 0) { c.stuck += dt; if (c.stuck > 1) { c.rev = 0.8 + Math.random() * 0.5; c.revSide = (c.revSide || 1) * -1; c.stuck = 0; } } else if (c.rev <= 0) c.stuck = 0;
+      var csT = progress(c, dt);
+      if (dP < 80) c.stuckT = 0;  // colle au joueur : ce n'est pas un blocage, c'est une tentative d'arrestation
+      else if (csT >= 2 && c.rev <= 0) { c.rev = 1.1; c.revSide = (c.revSide || 1) * -1; }
+      if ((csT >= 3 && !onScreen(c)) || csT >= 6) { if (onScreen(c)) poof(c); cops.splice(i, 1); continue; }
       var hit = collideCars(player, c);
       if (hit > 80) { player.hp -= (hit - 80) * 0.05; shake = Math.min(9, hit / 30); addSparks((player.x + c.x) / 2, (player.y + c.y) / 2, 10); }
       if (hit > 140) c.hp -= (hit - 140) * 0.35;
