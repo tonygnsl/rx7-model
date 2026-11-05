@@ -9,7 +9,7 @@ const MEMORY_MIN_SECONDS = 12;
 const DRIFT_MAX_PER_SEC  = 600;   // points max par seconde de jeu (survie + drift)
 const DRIFT_MAX_SECONDS  = 3600;  // une partie ne peut pas durer plus d'une heure
 const AIM_MAX_HITS_SEC   = 7;     // au-dela de 7 cibles par seconde, ce n'est plus humain
-const AIM_POINTS_HIT     = 10;
+const AIM_MAX_PTS_HIT    = 30;    // 10 points x combo maximal x3
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -163,11 +163,11 @@ if ($action === 'submit' && $game !== 'memory') {
         }
         $max = (int) floor($duration * DRIFT_MAX_PER_SEC) + 200;
     } elseif ($game === 'aim') {
-        // partie de 30 s cote client : la duree reelle (start -> submit) doit etre coherente
+        // 3 s de decompte + 30 s de jeu cote client : la duree reelle (start -> submit) doit etre coherente
         if ($duration < 29.5 || $duration > 60) {
             out(400, ['error' => 'Durée incohérente']);
         }
-        $max = 30 * AIM_MAX_HITS_SEC * AIM_POINTS_HIT;
+        $max = 30 * AIM_MAX_HITS_SEC * AIM_MAX_PTS_HIT;
     } else {
         if ($duration < 9.5 || $duration > 30) {
             out(400, ['error' => 'Durée incohérente']);
