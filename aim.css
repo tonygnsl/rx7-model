@@ -1,0 +1,15 @@
+/* Aim Trainer : styles propres au jeu (fichier externe, compatible CSP) */
+#aimcanvas {
+  display: block;
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  margin: 0 auto;
+  border: 1px solid var(--line, #2a2c36);
+  border-radius: 6px;
+  background: #121318;
+  cursor: crosshair;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}

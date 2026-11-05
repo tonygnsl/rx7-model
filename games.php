@@ -14,6 +14,9 @@ $current = (is_string($g) && isset(GAMES[$g])) ? $g : null;
     <meta name="csrf" content="<?= e(csrf_token()) ?>">
     <title>Jeux</title>
     <link rel="stylesheet" href="style.css?v=3">
+<?php if ($current === 'aim'): ?>
+    <link rel="stylesheet" href="aim.css?v=1">
+<?php endif; ?>
 </head>
 <body>
 <?php include 'nav.php'; ?>
@@ -47,6 +50,8 @@ $current = (is_string($g) && isset(GAMES[$g])) ? $g : null;
                     <button type="button" data-key="right">▶</button>
                     <button type="button" data-key="hb" class="dpad-wide">DRIFT</button>
                 </div>
+            <?php elseif ($current === 'aim'): ?>
+                <canvas id="aimcanvas" width="900" height="520"></canvas>
             <?php elseif ($current === 'click'): ?>
                 <button type="button" id="clickzone" class="clickzone" disabled>Prêt ?</button>
             <?php else: ?>
@@ -64,10 +69,13 @@ $current = (is_string($g) && isset(GAMES[$g])) ? $g : null;
     </div>
 <?php endif; ?>
 </main>
-<script src="app.js"></script>
+<script src="app.js?v=2"></script>
 <?php if ($current === 'drift'): ?>
-<script src="drift.js"></script>
+<script src="drift.js?v=7"></script>
 <?php endif; ?>
-<?php if ($current !== 'drift') include 'bg.php'; ?>
+<?php if ($current === 'aim'): ?>
+<script src="aim.js?v=1"></script>
+<?php endif; ?>
+<?php if ($current !== 'drift' && $current !== 'aim') include 'bg.php'; ?>
 </body>
 </html>
